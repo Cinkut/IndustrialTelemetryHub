@@ -24,5 +24,37 @@ services:
       timeout: 5s
       retries: 5
 
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: telemetry-api
+    depends_on:
+      db:
+        condition: service_healthy
+      mqtt:
+        condition: service_started
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__Default: "Host=db;Port=5432;Database=telemetry;Username=telemetry;Password=telemetry_dev"
+      Mqtt__Host: mqtt
+      Mqtt__Port: "1883"
+      # Aby włączyć analizę przez LLM, odkomentuj i podaj klucz (lepiej przez .env):
+      # Ai__ApiKey: "sk-ant-..."
+    ports:
+      - "8080:8080"
+
+  simulator:
+    build:
+      context: .
+      dockerfile: Dockerfile.simulator
+    container_name: telemetry-simulator
+    depends_on:
+      mqtt:
+        condition: service_started
+    environment:
+      Mqtt__Host: mqtt
+      Mqtt__Port: "1883"
+
 volumes:
   telemetry-pgdata:

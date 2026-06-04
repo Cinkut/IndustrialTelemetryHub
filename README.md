@@ -1,5 +1,7 @@
 # Industrial Telemetry Hub
 
+[![CI](https://github.com/Cinkut/IndustrialTelemetryHub/actions/workflows/ci.yml/badge.svg)](https://github.com/Cinkut/IndustrialTelemetryHub/actions/workflows/ci.yml)
+
 System do zbierania i analizy telemetrii z maszyn przemysłowych (Industry IoT).
 Maszyny publikują dane (temperatura, obroty, stany) przez **MQTT**; serwis .NET
 zbiera je, zapisuje, udostępnia przez REST API oraz live dashboard, a warstwa AI
@@ -19,32 +21,63 @@ przetwarzanie strumieniowe, komunikację real-time i praktyczne użycie AI.
 - **Docker** / docker-compose (broker Mosquitto + baza + serwisy)
 - **GitHub Actions** (CI: build + testy)
 
-## Architektura (docelowa)
+## Architektura
 
 ```
-Telemetry.Domain          # encje: Machine, TelemetryReading
-Telemetry.Application      # logika, abstrakcje, analiza AI
-Telemetry.Infrastructure   # EF Core, klient MQTT, dostęp do danych
-Telemetry.Api              # REST API + SignalR hub + dashboard
+Telemetry.Domain          # encje: TelemetryReading, MachineStatus
+Telemetry.Application      # logika, abstrakcje (repo, analizator AI), DTO
+Telemetry.Infrastructure   # EF Core, repozytorium, analizatory (heurystyka + LLM)
+Telemetry.Api              # REST API + SignalR hub + dashboard + ingestia MQTT
 Telemetry.Simulator        # symulator maszyn publikujący telemetrię (MQTT)
-Telemetry.Tests            # testy jednostkowe
+Telemetry.Tests            # testy jednostkowe (xUnit)
 ```
+
+Przepływ: **maszyny → MQTT (broker) → ingestia → PostgreSQL → REST API / SignalR → dashboard**,
+z warstwą AI analizującą odczyty na żądanie.
 
 ## Status
 
-🚧 W budowie. Plan rozwoju:
+✅ **Ukończony** — wszystkie zaplanowane funkcjonalności zrealizowane.
 
-- [x] Etap 0 — repo + solucja
-- [ ] Etap 1 — model domenowy + broker MQTT + symulator maszyn
-- [ ] Etap 2 — worker: zbieranie telemetrii z MQTT → zapis do bazy
-- [ ] Etap 3 — REST API + architektura warstwowa
-- [ ] Etap 4 — real-time (SignalR + live dashboard)
-- [ ] Etap 5 — warstwa AI (anomalie + opis stanu)
-- [ ] Etap 6 — testy + docker-compose + CI
+- [x] Integracja maszyn przez MQTT (symulator + broker Mosquitto)
+- [x] Ingestia strumienia MQTT → PostgreSQL (EF Core, dane time-series)
+- [x] REST API + architektura warstwowa (Repository + Service + DI)
+- [x] Real-time: SignalR + live dashboard
+- [x] Warstwa AI: detekcja anomalii + opis stanu (heurystyka + pluggable LLM)
+- [x] Testy jednostkowe (xUnit)
+- [x] Konteneryzacja (Docker) + CI (GitHub Actions)
 
-## Uruchomienie (docelowo)
+## Endpointy
+
+| Endpoint | Opis |
+|---|---|
+| `GET /` | live dashboard (kafelki maszyn aktualizowane przez SignalR) |
+| `GET /api/machines` | lista maszyn z najnowszym stanem |
+| `GET /api/machines/{id}/readings?limit=N` | historia odczytów |
+| `GET /api/machines/{id}/analysis` | analiza stanu (anomalie + opis) |
+
+## Uruchomienie
 
 ```bash
 docker compose up -d --build    # broker MQTT + baza + API + symulator
-# Dashboard / Swagger: http://localhost:8080
+# Dashboard:  http://localhost:8080
+# Swagger:    http://localhost:8080/swagger
+```
+
+## Analiza AI (opcjonalny LLM)
+
+Domyślnie analiza działa offline (heurystyka). Aby włączyć prawdziwy model językowy,
+wystarczy podać klucz API w konfiguracji — bez zmian w kodzie:
+
+```bash
+# np. zmienna środowiskowa / sekcja Ai__ApiKey w docker-compose
+Ai__ApiKey=sk-ant-...
+```
+
+Endpoint `/analysis` zwraca wtedy `"source": "llm"` zamiast `"heuristic"`.
+
+## Testy
+
+```bash
+dotnet test
 ```

@@ -1,0 +1,16 @@
+# --- BUILD (pełny SDK) ---
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+
+COPY Telemetry.Domain/*.csproj     Telemetry.Domain/
+COPY Telemetry.Simulator/*.csproj  Telemetry.Simulator/
+RUN dotnet restore Telemetry.Simulator/Telemetry.Simulator.csproj
+
+COPY . .
+RUN dotnet publish Telemetry.Simulator/Telemetry.Simulator.csproj -c Release -o /app --no-restore
+
+# --- RUNTIME (lekki obraz; worker nie potrzebuje ASP.NET) ---
+FROM mcr.microsoft.com/dotnet/runtime:10.0 AS final
+WORKDIR /app
+COPY --from=build /app .
+ENTRYPOINT ["dotnet", "Telemetry.Simulator.dll"]

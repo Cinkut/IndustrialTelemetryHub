@@ -1,0 +1,21 @@
+# --- BUILD (pełny SDK) ---
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+
+# Restore z cache'owaniem warstw (najpierw same .csproj).
+COPY Telemetry.Domain/*.csproj         Telemetry.Domain/
+COPY Telemetry.Application/*.csproj    Telemetry.Application/
+COPY Telemetry.Infrastructure/*.csproj Telemetry.Infrastructure/
+COPY Telemetry.Api/*.csproj            Telemetry.Api/
+RUN dotnet restore Telemetry.Api/Telemetry.Api.csproj
+
+COPY . .
+RUN dotnet publish Telemetry.Api/Telemetry.Api.csproj -c Release -o /app --no-restore
+
+# --- RUNTIME (lekki obraz ASP.NET) ---
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
+WORKDIR /app
+EXPOSE 8080
+ENV ASPNETCORE_URLS=http://+:8080
+COPY --from=build /app .
+ENTRYPOINT ["dotnet", "Telemetry.Api.dll"]
