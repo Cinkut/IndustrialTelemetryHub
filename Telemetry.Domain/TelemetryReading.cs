@@ -1,11 +1,17 @@
+using System.Text.Json.Serialization;
+
 namespace Telemetry.Domain;
 
 /// <summary>
 /// Pojedynczy odczyt telemetrii z maszyny. Pełni rolę kontraktu wiadomości MQTT
-/// (serializowany do JSON) oraz — od Etapu 2 — encji zapisywanej w bazie.
+/// (serializowany do JSON) oraz encji zapisywanej w bazie.
 /// </summary>
 public class TelemetryReading
 {
+    /// <summary>Klucz główny w bazie (nadawany przez DB, pomijany w wiadomości MQTT).</summary>
+    [JsonIgnore]
+    public long Id { get; set; }
+
     /// <summary>Identyfikator maszyny, np. "M-01".</summary>
     public string MachineId { get; set; } = string.Empty;
 
