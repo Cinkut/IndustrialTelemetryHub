@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Industrial Telemetry Hub — Live Dashboard</title>
+  <style>
+    :root { color-scheme: dark; }
+    body {
+      margin: 0; font-family: system-ui, sans-serif;
+      background: #0f1420; color: #e6e9ef; padding: 24px;
+    }
+    header { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
+    h1 { font-size: 22px; margin: 0; }
+    #status { font-size: 13px; padding: 4px 10px; border-radius: 999px; background: #333; }
+    #status.connected { background: #1b5e20; }
+    #grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+    .card {
+      background: #1a2233; border: 1px solid #2a3550; border-radius: 12px;
+      padding: 18px; transition: border-color .3s;
+    }
+    .card h2 { margin: 0 0 12px; font-size: 18px; }
+    .metric { display: flex; justify-content: space-between; margin: 6px 0; font-size: 14px; }
+    .metric .v { font-weight: 600; }
+    .badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+    .Running { background: #1b5e20; }
+    .Warning { background: #b26a00; }
+    .Fault   { background: #b71c1c; }
+    .Idle    { background: #455a64; }
+    .card.Fault   { border-color: #b71c1c; }
+    .card.Warning { border-color: #b26a00; }
+    .time { color: #8a93a6; font-size: 11px; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🏭 Industrial Telemetry Hub</h1>
+    <span id="status">łączenie…</span>
+  </header>
+  <div id="grid"></div>
+
+  <script src="https://unpkg.com/@microsoft/signalr@8.0.7/dist/browser/signalr.min.js"></script>
+  <script>
+    const grid = document.getElementById("grid");
+    const statusEl = document.getElementById("status");
+    const cards = {};
+
+    function render(m) {
+      let card = cards[m.machineId];
+      if (!card) {
+        card = document.createElement("div");
+        card.className = "card";
+        grid.appendChild(card);
+        cards[m.machineId] = card;
+      }
+      const status = m.status;
+      card.className = "card " + status;
+      card.innerHTML = `
+        <h2>${m.machineId}</h2>
+        <div class="metric"><span>Status</span><span class="badge ${status}">${status}</span></div>
+        <div class="metric"><span>Temperatura</span><span class="v">${m.temperatureC.toFixed(1)} °C</span></div>
+        <div class="metric"><span>Obroty</span><span class="v">${m.rpm} RPM</span></div>
+        <div class="time">${new Date(m.timestampUtc).toLocaleTimeString()}</div>`;
+    }
+
+    // Stan początkowy z REST API.
+    fetch("/api/machines")
+      .then(r => r.json())
+      .then(list => list.forEach(m => render({
+        machineId: m.machineId,
+        status: ["Idle","Running","Warning","Fault"][m.status] ?? "Idle",
+        temperatureC: m.temperatureC, rpm: m.rpm, timestampUtc: m.lastSeenUtc
+      })));
+
+    // Aktualizacje na żywo przez SignalR.
+    const connection = new signalR.HubConnectionBuilder()
+      .withUrl("/hubs/telemetry")
+      .withAutomaticReconnect()
+      .build();
+
+    connection.on("ReadingReceived", render);
+
+    connection.onreconnecting(() => { statusEl.textContent = "ponowne łączenie…"; statusEl.className = ""; });
+    connection.onreconnected(() => { statusEl.textContent = "● na żywo"; statusEl.className = "connected"; });
+
+    connection.start()
+      .then(() => { statusEl.textContent = "● na żywo"; statusEl.className = "connected"; })
+      .catch(err => { statusEl.textContent = "błąd połączenia"; console.error(err); });
+  </script>
+</body>
+</html>

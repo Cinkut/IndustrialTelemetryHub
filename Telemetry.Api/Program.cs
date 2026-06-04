@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Telemetry.Api.Hubs;
 using Telemetry.Api.Ingestion;
 using Telemetry.Application;
 using Telemetry.Infrastructure;
@@ -12,6 +13,9 @@ builder.Services.AddApplication();
 
 // Usługa w tle: odbiór telemetrii z MQTT i zapis do bazy.
 builder.Services.AddHostedService<MqttIngestionService>();
+
+// Real-time push do przeglądarek.
+builder.Services.AddSignalR();
 
 // Kontrolery + Swagger.
 builder.Services.AddControllers();
@@ -33,7 +37,12 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+// Serwowanie live dashboardu (wwwroot/index.html) + endpoint SignalR.
+app.UseDefaultFiles();
+app.UseStaticFiles();
+
 app.UseAuthorization();
 app.MapControllers();
+app.MapHub<TelemetryHub>("/hubs/telemetry");
 
 app.Run();

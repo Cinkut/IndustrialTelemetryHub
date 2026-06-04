@@ -1,20 +1,24 @@
 using System.Buffers;
 using System.Text;
 using System.Text.Json;
+using Microsoft.AspNetCore.SignalR;
 using MQTTnet;
+using Telemetry.Api.Hubs;
 using Telemetry.Domain;
 using Telemetry.Infrastructure.Data;
 
 namespace Telemetry.Api.Ingestion;
 
 /// <summary>
-/// Subskrybuje telemetrię z brokera MQTT (factory/#), deserializuje odczyty
-/// i zapisuje je do bazy danych. Działa jako usługa hostowana w tle.
+/// Subskrybuje telemetrię z brokera MQTT (factory/#), deserializuje odczyty,
+/// zapisuje je do bazy i wypycha na żywo do przeglądarek przez SignalR.
+/// Działa jako usługa hostowana w tle.
 /// </summary>
 public class MqttIngestionService(
     ILogger<MqttIngestionService> logger,
     IConfiguration config,
-    IServiceScopeFactory scopeFactory) : BackgroundService
+    IServiceScopeFactory scopeFactory,
+    IHubContext<TelemetryHub> hub) : BackgroundService
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
     private IMqttClient? _client;
@@ -69,6 +73,16 @@ public class MqttIngestionService(
             var db = scope.ServiceProvider.GetRequiredService<TelemetryDbContext>();
             db.Readings.Add(reading);
             await db.SaveChangesAsync();
+
+            // Push na żywo do podłączonych przeglądarek (status jako tekst dla czytelności w JS).
+            await hub.Clients.All.SendAsync("ReadingReceived", new
+            {
+                machineId = reading.MachineId,
+                status = reading.Status.ToString(),
+                temperatureC = reading.TemperatureC,
+                rpm = reading.Rpm,
+                timestampUtc = reading.TimestampUtc
+            });
         }
         catch (Exception ex)
         {
