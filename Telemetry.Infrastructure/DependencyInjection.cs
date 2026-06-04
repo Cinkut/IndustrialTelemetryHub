@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Telemetry.Application.Abstractions;
+using Telemetry.Infrastructure.Analysis;
 using Telemetry.Infrastructure.Data;
 using Telemetry.Infrastructure.Repositories;
 
@@ -16,6 +17,14 @@ public static class DependencyInjection
             options.UseNpgsql(configuration.GetConnectionString("Default")));
 
         services.AddScoped<ITelemetryRepository, TelemetryRepository>();
+
+        // Wybór analizatora: jest klucz API → prawdziwy LLM, brak → heurystyka offline.
+        var aiKey = configuration["Ai:ApiKey"];
+        if (!string.IsNullOrWhiteSpace(aiKey))
+            services.AddHttpClient<ITelemetryAnalyzer, LlmTelemetryAnalyzer>();
+        else
+            services.AddScoped<ITelemetryAnalyzer, HeuristicTelemetryAnalyzer>();
+
         return services;
     }
 }

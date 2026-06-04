@@ -3,7 +3,7 @@ using Telemetry.Application.Models;
 
 namespace Telemetry.Application.Services;
 
-public class TelemetryService(ITelemetryRepository repository) : ITelemetryService
+public class TelemetryService(ITelemetryRepository repository, ITelemetryAnalyzer analyzer) : ITelemetryService
 {
     public async Task<IReadOnlyList<MachineSummaryDto>> GetMachinesAsync(CancellationToken ct = default)
     {
@@ -33,5 +33,13 @@ public class TelemetryService(ITelemetryRepository repository) : ITelemetryServi
         limit = Math.Clamp(limit, 1, 500);
         var readings = await repository.GetRecentReadingsAsync(machineId, limit, ct);
         return readings.Select(ReadingDto.FromEntity).ToList();
+    }
+
+    public async Task<MachineAnalysis?> GetAnalysisAsync(string machineId, CancellationToken ct = default)
+    {
+        var recent = await repository.GetRecentReadingsAsync(machineId, 20, ct);
+        if (recent.Count == 0) return null;   // maszyna nieznana / brak danych
+
+        return await analyzer.AnalyzeAsync(machineId, recent, ct);
     }
 }

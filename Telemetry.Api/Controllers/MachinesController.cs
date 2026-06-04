@@ -21,4 +21,12 @@ public class MachinesController(ITelemetryService service) : ControllerBase
         var readings = await service.GetReadingsAsync(machineId, limit, ct);
         return readings is null ? NotFound($"Brak danych dla maszyny '{machineId}'.") : Ok(readings);
     }
+
+    /// <summary>Analiza stanu maszyny (anomalie + opis w języku naturalnym).</summary>
+    [HttpGet("{machineId}/analysis")]
+    public async Task<ActionResult<MachineAnalysis>> GetAnalysis(string machineId, CancellationToken ct)
+    {
+        var analysis = await service.GetAnalysisAsync(machineId, ct);
+        return analysis is null ? NotFound($"Brak danych dla maszyny '{machineId}'.") : Ok(analysis);
+    }
 }
